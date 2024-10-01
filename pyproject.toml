@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "redrcp"
+dynamic = ["version"]
+description = 'Python driver for Phychips RED-RCP UHF RFID readers'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Ibon Zalbide", email = "ibon.zalbide@kliskatek.com" },
+  { name = "Aritz Alonso", email = "aritz.alonso@kliskatek.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  'pyserial',
+  'dataclasses_json'
+]
+
+[project.optional-dependencies]
+dev = [
+    'pytest'
+]
+
+[project.urls]
+Documentation = "https://github.com/kliskatek/driver-rain-py-redrcp#readme"
+Issues = "https://github.com/kliskatek/driver-rain-py-redrcp/issues"
+Source = "https://github.com/kliskatek/driver-rain-py-redrcp"
+
+[tool.hatch.version]
+path = "src/redrcp/__about__.py"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/redrcp tests}"
+
+[tool.coverage.run]
+source_pkgs = ["redrcp", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/redrcp/__about__.py",
+]
+
+[tool.coverage.paths]
+py_redrcp = ["src/redrcp", "*/driver-rain-py-redrcp/src/redrcp"]
+tests = ["tests", "*/driver-rain-py-redrcp/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
