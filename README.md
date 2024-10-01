@@ -1,7 +1,7 @@
 # redrcp
 
-[![PyPI - Version](https://img.shields.io/pypi/v/py-redrcp.svg)](https://pypi.org/project/redrcp)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/py-redrcp.svg)](https://pypi.org/project/redrcp)
+[![PyPI - Version](https://img.shields.io/pypi/v/redrcp)](https://pypi.org/project/redrcp)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/redrcp)](https://pypi.org/project/redrcp)
 
 -----
 

@@ -6,7 +6,7 @@ from redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
 
 logging.basicConfig(level=logging.DEBUG)
 reader = RedRcp()
-reader.connect(port='COM3')
+reader.connect(connection_string='COM3')
 
 manufacturer = reader.get_info_manufacturer()
 model = reader.get_info_model()

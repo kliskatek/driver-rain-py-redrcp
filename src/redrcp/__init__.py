@@ -4,9 +4,6 @@ import time
 from threading import Thread
 from typing import Callable, List
 
-import serial
-import serial.tools.list_ports
-from serial.serialutil import SerialException
 
 from .rcp import rcp_commands
 from .rcp.enums import ParamFhLbtMode, Region, ParamSelectTarget, ParamSelectAction, ParamMemory, \
@@ -17,18 +14,14 @@ from .rcp.message_arguments import ArgumentsReaderInformationDetail, Notificatio
     NotificationTpeCuiiiRssi, ArgumentsCurrentRfChannel, ArgumentsFrequencyHoppingTable, ArgumentsAntiCollisionMode, \
     ArgumentsModulationMode, ArgumentsQueryParameters, ArgumentsSelectFilter, ArgumentsFhLbtParameters
 from .rcp.rcp_rx_handler import RcpRxHandler
+from .transport.serial import SerialPort
 
 logger = logging.getLogger(__name__)
 
 
 class RedRcp:
     def __init__(self):
-        self.serial = serial.Serial(
-            baudrate=115200,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            bytesize=serial.EIGHTBITS
-        )
+        self.transport = SerialPort()
         self.RX_thread = Thread(target=self._rx_thread, daemon=True, name='RxThread')
         self.RX_thread_run = True
         self.RX_thread.start()
@@ -39,21 +32,11 @@ class RedRcp:
                                                                          NotificationTpeCuiiiTid], None]):
         self.rcp_rx_handler.set_notification_callback(notification_callback)
 
-    def connect(self, port) -> bool:
-        if self.serial.isOpen():
-            logger.info('RedRcp already connected.')
-            return True
-        try:
-            self.serial.port = port
-            self.serial.open()
-            logger.info('RedRcp successfully connected.')
-            return True
-        except Exception as e:
-            logger.warning(e)
-            return False
+    def connect(self, connection_string) -> bool:
+        return self.transport.connect(connection_string)
 
     def is_connected(self) -> bool:
-        return self.serial.isOpen()
+        return self.transport.is_connected()
 
     def disconnect(self) -> bool:
         if not self.is_connected():
@@ -62,7 +45,7 @@ class RedRcp:
         try:
             self.RX_thread_run = False
             self.RX_thread.join()
-            self.serial.close()
+            self.transport.disconnect()
             logger.info('RedRcp successfully disconnected.')
             return True
         except Exception as e:
@@ -71,30 +54,22 @@ class RedRcp:
 
     def _rx_thread(self):
         while self.RX_thread_run:
-            if self.serial.isOpen():
-                try:
-                    data = self.serial.read_all()
+            if self.transport.is_connected():
+                data = self.transport.read()
+                if data is not None:
                     if len(data) > 0:
                         logger.debug('RX << ' + str(data.hex(sep=' ').upper()))
                         self.rcp_rx_handler.append_data(data)
-                except SerialException as e:
-                    logger.info('RedRcp disconnected.')
-                    self.serial.close()
-                except Exception as e:
-                    logger.warning(e)
             time.sleep(0.001)
 
-    def _tx_cmd(self, command: bytearray, name: str):
-        if not self.serial.isOpen():
-            logger.info('RED4S is disconnected.')
+    def _txrx_cmd(self, command: bytearray, name: str):
+        if not self.transport.is_connected():
+            logger.info('RedRcp is disconnected.')
             return None
 
         logger.info('TX -> ' + name)
-        self.serial.write(command)
+        self.transport.write(command)
         logger.debug('TX >> ' + str(command.hex(sep=' ').upper()))
-
-    def _txrx_cmd(self, command: bytearray, name: str):
-        self._tx_cmd(command, name)
         try:
             response = self.rcp_rx_handler.get_response()
             logger.info('RX <- ' + str(response))
@@ -102,18 +77,6 @@ class RedRcp:
         except TimeoutError:
             logger.info('Timeout executing ' + name)
             return None
-
-    def sw_reset(self):
-        self.rcp_rx_handler.reset_response_queue()
-        command: bytearray = rcp_commands.sw_reset()
-        self._tx_cmd(command=command, name=inspect.currentframe().f_code.co_name)
-        # SW_reset received ACK
-        resp = self.rcp_rx_handler.get_response()
-        logger.info('RX <- ' + str(resp))
-        # SW_reset executed ACK
-        resp = self.rcp_rx_handler.get_response()
-        logger.info('RX <- ' + str(resp))
-        return resp
 
     def get_info_model(self) -> str | None:
         command: bytearray = rcp_commands.get_info(ReaderInfoType.MODEL)
