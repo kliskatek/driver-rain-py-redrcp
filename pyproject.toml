@@ -59,7 +59,7 @@ omit = [
 ]
 
 [tool.coverage.paths]
-py_redrcp = ["src/redrcp", "*/driver-rain-py-redrcp/src/redrcp"]
+redrcp = ["src/redrcp", "*/driver-rain-py-redrcp/src/redrcp"]
 tests = ["tests", "*/driver-rain-py-redrcp/tests"]
 
 [tool.coverage.report]
