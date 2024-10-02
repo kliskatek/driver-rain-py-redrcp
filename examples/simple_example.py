@@ -2,7 +2,7 @@ import logging
 import time
 from binascii import hexlify
 
-from redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
+from src.redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
 
 logging.basicConfig(level=logging.DEBUG)
 reader = RedRcp()
@@ -38,8 +38,10 @@ reader.stop_auto_read2()
 res = reader.write(epc=some_tag.epc, target_memory=ParamMemory.USER, word_pointer=0, data='1234')
 logging.info(res)
 res = reader.read(epc=some_tag.epc, target_memory=ParamMemory.USER, word_pointer=0, word_count=1)
-logging.info(hexlify(res))
+if res is not None:
+    logging.info(hexlify(res))
 res = reader.write(epc=some_tag.epc, target_memory=ParamMemory.USER, word_pointer=0, data='5678')
 logging.info(res)
 res = reader.read(epc=some_tag.epc, target_memory=ParamMemory.USER, word_pointer=0, word_count=1)
-logging.info(hexlify(res))
+if res is not None:
+    logging.info(hexlify(res))

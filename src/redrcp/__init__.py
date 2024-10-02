@@ -4,7 +4,6 @@ import time
 from threading import Thread
 from typing import Callable, List
 
-
 from .rcp import rcp_commands
 from .rcp.enums import ParamFhLbtMode, Region, ParamSelectTarget, ParamSelectAction, ParamMemory, \
     ParamDR, ParamModulation, ParamSel, ParamTarget, ParamSession, AntiCollisionMode, ReaderInfoType, TagType, \
@@ -210,9 +209,12 @@ class RedRcp:
         return self._txrx_cmd(command=command, name=inspect.currentframe().f_code.co_name)
 
     def read(self, epc, target_memory: ParamMemory, word_pointer: int, word_count: int = 1,
-             access_password=bytearray([0, 0, 0, 0])) -> bytearray | None:
+             access_password=bytearray([0, 0, 0, 0])) -> bytes | None:
         command: bytearray = rcp_commands.read(epc, target_memory, word_pointer, word_count, access_password)
-        return self._txrx_cmd(command=command, name=inspect.currentframe().f_code.co_name)
+        resp = self._txrx_cmd(command=command, name=inspect.currentframe().f_code.co_name)
+        if type(resp) is ErrorMessage:
+            return None
+        return resp
 
     def write(self, epc, target_memory: ParamMemory, word_pointer: int, data: bytearray | str | int | List[int],
               access_password=bytearray([0, 0, 0, 0])) -> OperationResult:
