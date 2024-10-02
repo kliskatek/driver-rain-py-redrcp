@@ -2,7 +2,7 @@ import logging
 import time
 from binascii import hexlify
 
-from src.redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
+from redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
 
 logging.basicConfig(level=logging.DEBUG)
 reader = RedRcp()
