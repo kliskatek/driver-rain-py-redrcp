@@ -2,14 +2,17 @@ import logging
 import time
 from binascii import hexlify
 
-from redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
+from src.redrcp import RedRcp, ParamMemory, NotificationTpeCuiii
 
 logging.basicConfig(level=logging.DEBUG)
 reader = RedRcp()
-reader.connect(connection_string='COM3')
+
+reader.connect(connection_string='COM3')  # Windows
+#reader.connect(connection_string='/dev/ttyUSB0')  # Linux
 
 manufacturer = reader.get_info_manufacturer()
 model = reader.get_info_model()
+fw_version = reader.get_info_fw_version()
 details = reader.get_info_detail()
 
 reader.set_tx_power(27)
@@ -28,9 +31,11 @@ reader.set_notification_callback(autoread_notification_callback)
 reader.start_auto_read2()
 time.sleep(.1)
 reader.stop_auto_read2()
+
 # reader.start_auto_read_tid()
 # time.sleep(.1)
 # reader.stop_auto_read_tid()
+
 # reader.start_auto_read_rssi()
 # time.sleep(.1)
 # reader.stop_auto_read_rssi()

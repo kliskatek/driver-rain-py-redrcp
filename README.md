@@ -47,18 +47,21 @@ details = reader.get_info_detail()
 ```
 Sample response values:
 
-````
+`
 manufacturer = 'PHYCHIPS'
-````
-````
-fw_version = 'v2.3.0'
-````
-````
-model = 'RED4S-SKR'
-````
-````
-details = ArgumentsReaderInformationDetail(TODO)
-````
+`
+
+`
+fw_version = 'RED4S_v2.2.1_K'
+`
+
+`
+model = 'R4S5U1DK-E'
+`
+
+`
+details = ArgumentsReaderInformationDetail(region=<Region.Europe: 49>, channel=13, read_time=380, idle_time=100, cw_sense_time=5, lbt_rf_level=-74.0, current_tx_power=27.0, min_tx_power=13.0, max_tx_power=27.0, BLF=250, modulation=<ParamModulation.MILLER_4: 2>, DR=<ParamDR.DR_64_DIV_3: 1>)
+`
 
 
 ### Configure the reader
@@ -95,7 +98,7 @@ reader.stop()
 Sample report:
 
 `
-NotificationTpeCuiii(TODO)
+NotificationTpeCuiii(pc=bytearray(b'0\x00'), epc=bytearray(b'0\x083\xb2\xdd\xd9\x01@\x00\x00\x00\x00'))
 `
 
 ### Execute Read/Write operations
