@@ -2,7 +2,7 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/redrcp)](https://pypi.org/project/redrcp)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/redrcp)](https://pypi.org/project/redrcp)
-![OS](https://img.shields.io/badge/os-windows%20|%20linux-blue)
+![OS](https://img.shields.io/badge/os-windows%20|%20linux%20|%20macos-blue)
 
 -----
 *Python driver for Phychips RED-RCP UHF RFID readers*
@@ -30,7 +30,9 @@ pip install redrcp
 reader = RedRcp()
 
 # Connect
-reader.connect(connection_string='COM3')
+reader.connect(connection_string='COM3')  # windows
+#reader.connect(connection_string='/dev/ttyUSB0')  # linux
+#reader.connect(connection_string='/dev/tty.usbserial-001')  # macos
 
 ... use the reader ...
 
