@@ -1,38 +1,47 @@
 """
-PoC: Phychips RED4S — read legacy / Farsens user-memory by alternating
-short inventory windows with explicit Read() calls under CW.
+PoC of the LEGACY-mode loop the SDK wrapper runs on the RED4S.
 
-The RED4S has no embedded-read primitive (unlike the R700 / Speedway),
-so the loop is:
+Rotating ops: every OP_PERIOD_S we run one operation from a list
+  [inventory, read sensor_1, read sensor_2, …]
+The inventory slot refreshes the EPC list (tags can come and go);
+the read slots stream the user-memory blob of each sensor tag.
 
-  1. start_auto_read2()           — quick inventory window
-  2. wait INVENTORY_WINDOW_MS     — accumulate seen EPCs in callback
-  3. stop_auto_read2()
-  4. set_cw(True)                 — keep tags powered between reads
-  5. for each EPC: read(USER, 0x100, WORD_COUNT)
-  6. set_cw(False)
-  7. repeat
+CW does NOT need to be re-set between Reads on the RED4S — it stays
+on for the whole burst (verified empirically). The reader manages
+CW itself when transitioning between Read/auto_read/idle.
+
+Useful as a smoke-check / spectrum-analyser companion when tuning
+the duty cycle.
 """
 
 import logging
 import time
 
-from redrcp import (
-    RedRcp,
-    AntiCollisionMode,
-    ParamDR, ParamFhLbtMode, ParamMemory, ParamModulation,
-    ParamSel, ParamSession, ParamTarget,
-)
+from redrcp import RedRcp, ParamMemory
 
 
 PORT = "COM4"
+TX_POWER_DBM = 27
 WORD_PTR = 0x100
 WORD_COUNT = 6
-INVENTORY_WINDOW_MS = 500
-LOOP_S = 8
-TX_POWER_DBM = 25.0
+INVENTORY_WINDOW_S = 0.3    # how long the inventory burst holds the air
+OP_PERIOD_S = 0.10          # min start-to-start spacing per operation
+RUN_S = 10
+
+# Only Reads on tags whose EPC matches these PEN prefixes; others are
+# reported once and ignored to avoid burning the driver's 3 s timeout.
+LEGACY_PEN  = bytes.fromhex('000000F1D3')
+FARSENS_PEN = bytes.fromhex('000000A93C')
 
 logging.basicConfig(level=logging.WARNING)
+
+
+def is_sensor_epc(epc_hex: str) -> bool:
+    try:
+        b = bytes.fromhex(epc_hex)
+    except ValueError:
+        return False
+    return b.startswith(LEGACY_PEN) or b.startswith(FARSENS_PEN)
 
 
 def main():
@@ -40,63 +49,69 @@ def main():
     if not reader.connect(PORT):
         print(f"Could not connect to {PORT}")
         return
-
-    seen_epcs = set()
-
-    def on_notification(notif):
-        # bytearray is not hashable; store as hex string
-        try:
-            seen_epcs.add(bytes(notif.epc).hex().upper())
-        except Exception as e:
-            print(f"callback err: {e}")
-
-    reader.set_notification_callback(on_notification)
+    seen_epcs: set[str] = set()
+    reader.set_notification_callback(
+        lambda notif: seen_epcs.add(bytes(notif.epc).hex().upper())
+    )
     reader.set_tx_power(TX_POWER_DBM)
-    # NOTE: set_anti_collision_mode / set_query_parameters / get_info_detail
-    # break the next auto_read2 cycle on this firmware (RED4S_v2.2.1_K).
-    # Whatever the reader has in NVM works — leave it alone.
 
-    # Baseline test: just inventory for the full window, see if the reader
-    # reports any tags at all. If this is empty too, the problem is config
-    # (not the loop / timing).
-    print(f"\nBaseline inventory (no loop) for 3 s on {PORT}…")
-    seen_epcs.clear()
-    reader.start_auto_read2()
-    time.sleep(3.0)
-    reader.stop_auto_read2()
-    print(f"  baseline saw {len(seen_epcs)} unique EPC(s): {list(seen_epcs)[:5]}")
+    sensor_epcs: list[str] = []
+    seen_passthrough: set[str] = set()
+    counts: dict[str, list] = {}
 
-    print(f"\nReading on {PORT} for {LOOP_S} s. Bring legacy/Farsens tags close…")
-    summary = {}  # epc -> [(count, first_user_mem_hex)]
-    deadline = time.monotonic() + LOOP_S
-    cycle = 0
+    def record(epc: str, blob):
+        entry = counts.setdefault(epc, [0, None])
+        entry[0] += 1
+        if blob and entry[1] is None:
+            entry[1] = blob
+
+    def do_inventory():
+        seen_epcs.clear()
+        reader.start_auto_read2()
+        time.sleep(INVENTORY_WINDOW_S)
+        reader.stop_auto_read2()
+        new_sensor = [e for e in seen_epcs if is_sensor_epc(e)]
+        sensor_epcs[:] = [e for e in sensor_epcs if e in new_sensor] + \
+                         [e for e in new_sensor if e not in sensor_epcs]
+        for epc in seen_epcs - set(sensor_epcs):
+            if epc not in seen_passthrough:
+                seen_passthrough.add(epc)
+                record(epc, None)
+                print(f"[passthrough] {epc}")
+
+    def do_read(epc: str):
+        try:
+            data = reader.read(epc, ParamMemory.USER, WORD_PTR, WORD_COUNT)
+        except Exception as e:
+            print(f"read({epc}) error: {e}")
+            data = None
+        blob = bytes(data).hex().upper() if data else None
+        record(epc, blob)
+
+    deadline = time.monotonic() + RUN_S
+    op_idx = 0
     try:
         while time.monotonic() < deadline:
-            cycle += 1
-            seen_epcs.clear()
-            reader.start_auto_read2()
-            time.sleep(INVENTORY_WINDOW_MS / 1000.0)
-            reader.stop_auto_read2()
-            if not seen_epcs:
-                continue
-            reader.set_cw(True)
-            try:
-                for epc in list(seen_epcs):
-                    data = reader.read(epc, ParamMemory.USER, WORD_PTR, WORD_COUNT)
-                    blob = bytes(data).hex().upper() if data else None
-                    entry = summary.setdefault(epc, [0, None])
-                    entry[0] += 1
-                    if blob and entry[1] is None:
-                        entry[1] = blob
-                    print(f"[cycle {cycle}] EPC={epc} user_mem={blob or '<read failed>'}")
-            finally:
-                reader.set_cw(False)
+            op_start = time.monotonic()
+            ops_len = 1 + len(sensor_epcs)
+            op = op_idx % ops_len
+            op_idx += 1
+            if op == 0:
+                do_inventory()
+            else:
+                do_read(sensor_epcs[op - 1])
+            elapsed = time.monotonic() - op_start
+            remaining = OP_PERIOD_S - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
     finally:
+        reader.set_cw(False)
         reader.disconnect()
 
     print("\nSummary:")
-    for epc, (cnt, first_blob) in summary.items():
-        print(f"  {cnt:3d}x  EPC={epc}  first_data={first_blob or '<none>'}")
+    for epc, (cnt, first) in sorted(counts.items(), key=lambda kv: -kv[1][0]):
+        rate = cnt / RUN_S
+        print(f"  {cnt:4d}x ({rate:.1f}/s)  EPC={epc}  first_data={first or '<none>'}")
 
 
 if __name__ == "__main__":
